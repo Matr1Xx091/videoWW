@@ -12,7 +12,14 @@ from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButto
 from aiogram.client.default import DefaultBotProperties
 import yt_dlp
 
+# --- ТВОЙ ТОКЕН ---
 TOKEN = "8250742177:AAGOPppYA5PALhoNwZsfoa_uLdQcE3m3Ktc"
+# ------------------
+
+# --- ТВОЙ ПРОКСИ (ПОЛЬША) ---
+# Формат: http://user:pass@ip:port
+PROXY_URL = "http://eqfjwhvr:ni06lu79kb06@84.247.60.125:6095"
+# ----------------------------
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
@@ -21,6 +28,8 @@ dp = Dispatcher()
 user_data = {}
 progress_storage = {}
 pending_files = {}
+
+# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
 
 def clean_filename(title):
     clean = re.sub(r'[^\w\s\-\.]', '', str(title))
@@ -35,8 +44,8 @@ def is_aria2_installed():
     if shutil.which("aria2c"): return "aria2c"
     return None
 
-# --- WEB SERVER (Для Render) ---
-async def health_check(request): return web.Response(text="Alive")
+# --- WEB SERVER (ЧТОБЫ RENDER НЕ УСНУЛ) ---
+async def health_check(request): return web.Response(text="Bot is Alive & Proxy is ON")
 
 async def start_web_server():
     port = int(os.environ.get("PORT", 8080))
@@ -47,7 +56,7 @@ async def start_web_server():
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
 
-# --- CLOUD UPLOAD ---
+# --- CLOUD UPLOAD (CATBOX) ---
 async def upload_to_catbox(file_path):
     url = "https://litterbox.catbox.moe/resources/internals/api.php"
     async with aiohttp.ClientSession() as session:
@@ -62,7 +71,7 @@ async def upload_to_catbox(file_path):
         except: pass
     return None
 
-# --- KEYBOARDS ---
+# --- КЛАВИАТУРЫ ---
 def get_quality_keyboard(url):
     buttons = [
         [InlineKeyboardButton(text="📹 Видео (Best)", callback_data="quality_1080"),
@@ -72,14 +81,14 @@ def get_quality_keyboard(url):
 
 def get_error_keyboard():
     buttons = [
-        [InlineKeyboardButton(text="🔗 Прямая ссылка", callback_data="link_yes")],
+        [InlineKeyboardButton(text="🔗 Прямая ссылка (Быстро)", callback_data="link_yes")],
         [InlineKeyboardButton(text="✂️ Разрезать", callback_data="split_yes")],
         [InlineKeyboardButton(text="📉 Сжать (<50МБ)", callback_data="compress_yes")],
         [InlineKeyboardButton(text="❌ Отмена", callback_data="split_cancel")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
-# --- PROGRESS ---
+# --- ПРОГРЕСС БАР ---
 def make_progress_hook(chat_id):
     def hook(d):
         if d['status'] == 'downloading':
@@ -100,26 +109,29 @@ async def progress_tracker_task(chat_id, message_id):
         await asyncio.sleep(2)
         data = progress_storage.get(chat_id)
         if not data: continue
+        
         if data.get("status") == "finished":
             try: await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text="⚙️ <b>Обработка...</b>")
             except: pass
             break
+            
         pct = data.get("percent", 0)
-        text = f"🚀 <b>Загрузка:</b> {int(pct)}%"
+        text = f"🇵🇱 <b>Качаю через Польшу...</b>\n🚀 Прогресс: {int(pct)}%"
+        
         if text != last_text:
             try: 
                 await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text)
                 last_text = text
             except: break
 
-# --- ACTIONS ---
+# --- ДЕЙСТВИЯ (ССЫЛКА, НАРЕЗКА, СЖАТИЕ) ---
 async def handle_cloud_upload(chat_id, file_path, status_msg):
     try:
         await status_msg.edit_text("☁️ <b>Загрузка на сервер...</b>")
         link = await upload_to_catbox(file_path)
         if link and link.startswith("http"):
-            await status_msg.edit_text(f"✅ <b>Готово!</b>\n🔗 <a href='{link}'>Скачать видео</a>", disable_web_page_preview=True)
-        else: await status_msg.edit_text("❌ Ошибка сервера.")
+            await status_msg.edit_text(f"✅ <b>Готово!</b>\n🔗 <a href='{link}'>Скачать видео</a>\n(Ссылка живет 24 часа)", disable_web_page_preview=True)
+        else: await status_msg.edit_text("❌ Ошибка сервера загрузки.")
     except Exception as e: await status_msg.edit_text(f"⚠️ {e}")
     finally:
         if os.path.exists(file_path): os.remove(file_path)
@@ -149,7 +161,6 @@ async def compress_and_send(chat_id, file_path, status_msg):
         await status_msg.edit_text("📉 <b>Сжатие...</b>")
         base = os.path.splitext(file_path)[0]
         comp_path = f"{base}_comp.mp4"
-        # Жесткое сжатие
         cmd = f'ffmpeg -i "{file_path}" -vcodec libx264 -crf 28 -preset ultrafast "{comp_path}"'
         proc = await asyncio.create_subprocess_shell(cmd)
         await proc.communicate()
@@ -166,15 +177,15 @@ async def compress_and_send(chat_id, file_path, status_msg):
         if os.path.exists(file_path): os.remove(file_path)
         pending_files.pop(chat_id, None)
 
-# --- HANDLERS ---
+# --- ХЕНДЛЕРЫ БОТА ---
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    await message.answer("👋 <b>Бот v20 (Anti-Ban)</b>\nПришли ссылку!")
+    await message.answer("👋 <b>Бот работает через Польшу 🇵🇱</b>\nПришли ссылку!")
 
 @dp.message(F.text)
 async def process_link(message: types.Message):
     user_data[message.from_user.id] = message.text.strip()
-    await message.answer("🔎 Формат?", reply_markup=get_quality_keyboard(""))
+    await message.answer("🔎 Выбери формат:", reply_markup=get_quality_keyboard(""))
 
 @dp.callback_query(F.data.in_({"link_yes", "split_yes", "compress_yes", "split_cancel"}))
 async def process_action(call: CallbackQuery):
@@ -198,14 +209,15 @@ async def process_quality(call: CallbackQuery):
     progress_storage[call.from_user.id] = {}
     temp_tmpl = f'downloads/{call.from_user.id}_temp_%(id)s.%(ext)s'
     
-    # --- НОВЫЕ НАСТРОЙКИ (ANTI-BAN) ---
+    # --- НАСТРОЙКИ С ПРОКСИ ---
     opts = {
         'outtmpl': temp_tmpl,
         'noplaylist': True,
         'progress_hooks': [make_progress_hook(call.from_user.id)],
         'ffmpeg_location': get_ffmpeg_location(),
         'http_headers': {'User-Agent': 'Mozilla/5.0'},
-        # ВАЖНО: Притворяемся Андроидом, чтобы обойти 429
+        'proxy': PROXY_URL,  # <--- ПОДКЛЮЧАЕМ ПРОКСИ
+        # Режим "Андроид" тоже оставляем, для надежности
         'extractor_args': {'youtube': {'player_client': ['android', 'ios']}},
     }
     
@@ -217,10 +229,9 @@ async def process_quality(call: CallbackQuery):
         opts['format'] = 'bestaudio/best'
         opts['postprocessors'] = [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3'}]
     else:
-        # Качаем лучшее что есть, но не больше 1080p
         opts['format'] = 'bestvideo[height<=1080]+bestaudio/best'
 
-    msg = await call.message.edit_text("⏳ <b>Старт...</b>")
+    msg = await call.message.edit_text("⏳ <b>Подключаюсь к Польше...</b>")
     asyncio.create_task(progress_tracker_task(call.message.chat.id, msg.message_id))
 
     try:
@@ -232,7 +243,6 @@ async def process_quality(call: CallbackQuery):
         base, ext = os.path.splitext(d_file)
         final_ext = ".mp3" if quality == 'audio' else ".mp4"
         
-        # Ищем файл
         real_path = None
         for p in [base + final_ext, d_file]:
             if os.path.exists(p):
@@ -241,13 +251,11 @@ async def process_quality(call: CallbackQuery):
         
         if not real_path: raise Exception("Файл не скачался.")
         
-        # Переименование
         final_name = f"{clean_filename(info.get('title', 'video'))}{final_ext}"
         final_path = os.path.join('downloads', final_name)
         if os.path.exists(final_path): os.remove(final_path)
         os.rename(real_path, final_path)
 
-        # Проверка размера
         size_mb = os.path.getsize(final_path) / (1024*1024)
         if size_mb > 49.5:
             pending_files[call.message.chat.id] = final_path
@@ -261,14 +269,14 @@ async def process_quality(call: CallbackQuery):
 
     except Exception as e:
         err = str(e)
-        if "429" in err: await msg.edit_text("⛔️ <b>Бан от YouTube (429)</b>\nСервер перегружен. Попробуй позже или скачай с TikTok.")
-        elif "Sign in" in err: await msg.edit_text("🔒 <b>Ошибка доступа.</b>\nМы удалили куки, но YouTube все равно ругается. Попробуй другое видео.")
+        if "429" in err: await msg.edit_text("⛔️ <b>Ошибка 429</b>\nДаже прокси не помог. YouTube сейчас очень зол.")
+        elif "Sign in" in err: await msg.edit_text("🔒 <b>Ошибка доступа.</b>\nYouTube требует авторизацию.")
         else: await msg.edit_text(f"⚠️ Ошибка: {err}")
-        # Чистка
         if 'd_file' in locals() and d_file and os.path.exists(d_file): os.remove(d_file)
 
 async def main():
     if not os.path.exists('downloads'): os.makedirs('downloads')
+    print("✅ БОТ ЗАПУЩЕН! (v21.0 Proxy Poland)")
     asyncio.create_task(start_web_server())
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
