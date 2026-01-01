@@ -12,12 +12,8 @@ from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButto
 from aiogram.client.default import DefaultBotProperties
 import yt_dlp
 
-# --- ТВОЙ ТОКЕН ---
 TOKEN = "8250742177:AAGOPppYA5PALhoNwZsfoa_uLdQcE3m3Ktc"
-
-# --- ТВОЙ ПРОКСИ (ПОЛЬША) ---
 PROXY_URL = "http://eqfjwhvr:ni06lu79kb06@84.247.60.125:6095"
-# ----------------------------
 
 logging.basicConfig(level=logging.INFO)
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
@@ -63,8 +59,8 @@ async def upload_to_catbox(file_path):
 
 # --- KEYBOARDS ---
 def get_quality_keyboard(url):
-    buttons = [[InlineKeyboardButton(text="📹 Скачать Видео", callback_data="quality_video"),
-                InlineKeyboardButton(text="🎵 Скачать Аудио", callback_data="quality_audio")]]
+    buttons = [[InlineKeyboardButton(text="📹 Видео", callback_data="quality_video"),
+                InlineKeyboardButton(text="🎵 Аудио", callback_data="quality_audio")]]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 def get_error_keyboard():
@@ -100,7 +96,7 @@ async def progress_tracker_task(chat_id, message_id):
             except: pass
             break
         pct = data.get("percent", 0)
-        text = f"🍏 <b>Качаю (iOS)...</b> {int(pct)}%"
+        text = f"📺 <b>Качаю (TV)...</b> {int(pct)}%"
         if text != last_text:
             try: await bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=text)
             except: break
@@ -133,7 +129,7 @@ async def split_and_send(chat_id, file_path, status_msg):
             except: pass
             finally: os.remove(p)
         await status_msg.delete()
-    except: await status_msg.edit_text("⚠️ Ошибка нарезки.")
+    except: await status_msg.edit_text("⚠️ Ошибка.")
     finally:
         if os.path.exists(file_path): os.remove(file_path)
         pending_files.pop(chat_id, None)
@@ -150,7 +146,7 @@ async def compress_and_send(chat_id, file_path, status_msg):
             await status_msg.edit_text("📤 <b>Отправка...</b>")
             await bot.send_video(chat_id, FSInputFile(comp_path))
             await status_msg.delete()
-        else: await status_msg.edit_text("⚠️ Файл > 50 МБ. Используй ссылку.")
+        else: await status_msg.edit_text("⚠️ Файл > 50 МБ. Бери ссылку.")
         if os.path.exists(comp_path): os.remove(comp_path)
     except: await status_msg.edit_text("⚠️ Ошибка.")
     finally:
@@ -160,12 +156,12 @@ async def compress_and_send(chat_id, file_path, status_msg):
 # --- HANDLERS ---
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    await message.answer("👋 <b>Бот работает!</b> (v25.0 iOS Mode)")
+    await message.answer("👋 <b>Бот работает!</b> (v26.0 TV Mode)")
 
 @dp.message(F.text)
 async def process_link(message: types.Message):
     user_data[message.from_user.id] = message.text.strip()
-    await message.answer("🔎 Что качаем?", reply_markup=get_quality_keyboard(""))
+    await message.answer("🔎 Формат?", reply_markup=get_quality_keyboard(""))
 
 @dp.callback_query(F.data.in_({"link_yes", "split_yes", "compress_yes", "split_cancel"}))
 async def process_action(call: CallbackQuery):
@@ -192,17 +188,16 @@ async def process_quality(call: CallbackQuery):
         'progress_hooks': [make_progress_hook(call.from_user.id)],
         'ffmpeg_location': get_ffmpeg_location(),
         'proxy': PROXY_URL,
-        'http_headers': {'User-Agent': 'Mozilla/5.0'},
-        # ПРИТВОРЯЕМСЯ АЙФОНОМ (обычно работает лучше всего с прокси)
-        'extractor_args': {'youtube': {'player_client': ['ios']}},
+        # ПРИТВОРЯЕМСЯ ТЕЛЕВИЗОРОМ
+        'extractor_args': {'youtube': {'player_client': ['tv_embedded', 'web_embedded']}},
     }
 
     if mode == 'audio':
         opts['format'] = 'bestaudio/best'
         opts['postprocessors'] = [{'key': 'FFmpegExtractAudio','preferredcodec': 'mp3'}]
     else:
-        # МЯГКИЙ ВЫБОР: Сначала 1080p, если нет -> лучшее что есть
-        opts['format'] = 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best'
+        # Максимально "всеядный" запрос форматов
+        opts['format'] = 'bestvideo+bestaudio/best'
 
     msg = await call.message.edit_text("⏳ <b>Старт...</b>")
     asyncio.create_task(progress_tracker_task(call.message.chat.id, msg.message_id))
@@ -242,13 +237,12 @@ async def process_quality(call: CallbackQuery):
     except Exception as e:
         err = str(e)
         if "429" in err: await msg.edit_text("⛔️ <b>Бан 429</b>")
-        elif "Sign in" in err: await msg.edit_text("🔒 <b>Ошибка 403</b>")
         else: await msg.edit_text(f"⚠️ Ошибка: {err}")
         if 'd_file' in locals() and d_file and os.path.exists(d_file): os.remove(d_file)
 
 async def main():
     if not os.path.exists('downloads'): os.makedirs('downloads')
-    print("✅ БОТ ЗАПУЩЕН! (v25.0 iOS)")
+    print("✅ БОТ ЗАПУЩЕН! (v26.0 TV Mode)")
     asyncio.create_task(start_web_server())
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
