@@ -7,6 +7,7 @@ import shutil
 import aiohttp
 from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
+from aiogram.filters import Command  # <--- ВОТ ЭТО БЫЛО ПОТЕРЯНО
 from aiogram.types import FSInputFile, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.client.default import DefaultBotProperties
 import yt_dlp
@@ -159,7 +160,7 @@ async def compress_and_send(chat_id, file_path, status_msg):
 # --- HANDLERS ---
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
-    await message.answer("👋 <b>Бот работает!</b> (v23.0 Proxy Clean)")
+    await message.answer("👋 <b>Бот работает!</b> (v23.1 Proxy Clean)")
 
 @dp.message(F.text)
 async def process_link(message: types.Message):
@@ -245,7 +246,7 @@ async def process_quality(call: CallbackQuery):
 
 async def main():
     if not os.path.exists('downloads'): os.makedirs('downloads')
-    print("✅ БОТ ЗАПУЩЕН! (v23.0 Proxy Final)")
+    print("✅ БОТ ЗАПУЩЕН! (v23.1 Proxy Clean)")
     asyncio.create_task(start_web_server())
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
