@@ -1,8 +1,10 @@
 FROM python:3.10-slim
 
-# Устанавливаем и FFmpeg, и Aria2
+# Устанавливаем FFmpeg, Aria2 И NODEJS (важно для YouTube!)
 RUN apt-get update && \
-    apt-get install -y ffmpeg aria2 && \
+    apt-get install -y ffmpeg aria2 curl && \
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
